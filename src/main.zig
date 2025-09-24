@@ -1,7 +1,4 @@
 const std = @import("std");
-const win = std.os.windows;
-
-const handmade_hero_zig = @import("handmade_hero_zig");
 
 const c = @cImport({
     @cInclude("windows.h");
@@ -31,23 +28,24 @@ pub fn mainWindowCallback(
             c.OutputDebugStringA("WM_SIZE\n");
         },
         c.WM_DESTROY => {
-            c.OutputDebugStringA("WM_SIZE\n");
+            c.OutputDebugStringA("WM_DESTROY \n");
         },
         c.WM_CLOSE => {
-            c.OutputDebugStringA("WM_SIZE\n");
+            c.OutputDebugStringA("WM_CLOSE\n");
         },
         c.WM_ACTIVATE => {
-            c.OutputDebugStringA("WM_SIZE\n");
+            c.OutputDebugStringA("WM_ACTIVATE\n");
         },
         c.WM_PAINT => {
             var paint: c.PAINTSTRUCT = .{};
             const deviceContext = c.BeginPaint(window, &paint);
+            defer _ = c.EndPaint(window, &paint);
+
             const x = paint.rcPaint.left;
             const y = paint.rcPaint.top;
             const width = paint.rcPaint.right - paint.rcPaint.left;
             const height = paint.rcPaint.bottom - paint.rcPaint.top;
             _ = c.PatBlt(deviceContext, x, y, width, height, c.WHITENESS);
-            _ = c.EndPaint(window, &paint);
         },
         else => {
             // c.OutputDebugStringA("WM_SIZE\n");
@@ -60,25 +58,13 @@ pub fn mainWindowCallback(
 pub fn main() !void {
     const windowClass = c.WNDCLASS{
         .style = c.CS_OWNDC | c.CS_HREDRAW | c.CS_VREDRAW,
-        .lpfnWndProc = mainWindowCallback,
+        .lpfnWndProc = &mainWindowCallback,
         .hInstance = c.GetModuleHandleA(0),
         .lpszClassName = "HandmadeHeroWindowClass",
     };
-    if (c.RegisterClassA(&windowClass) == 0) {
-        const windowHandle = c.CreateWindowExA(
-            0,
-            windowClass.lpszClassName,
-            "Handmade Hero",
-            c.WS_OVERLAPPEDWINDOW | c.WS_VISIBLE,
-            c.CW_USEDEFAULT,
-            c.CW_USEDEFAULT,
-            c.CW_USEDEFAULT,
-            c.CW_USEDEFAULT,
-            0,
-            0,
-            c.GetModuleHandleA((0)),
-            null,
-        );
+    const regResult = c.RegisterClassA(&windowClass);
+    if (regResult != 0) {
+        const windowHandle = c.CreateWindowExA(0, windowClass.lpszClassName, "Handmade Hero", c.WS_OVERLAPPEDWINDOW | c.WS_VISIBLE, c.CW_USEDEFAULT, c.CW_USEDEFAULT, c.CW_USEDEFAULT, c.CW_USEDEFAULT, 0, 0, c.GetModuleHandleA((0)), null);
         if (windowHandle != 0) {
             while (true) {
                 var message: c.MSG = undefined;
