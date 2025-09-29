@@ -1,80 +1,102 @@
 const std = @import("std");
-
-const c = @cImport({
-    @cInclude("windows.h");
-    @cInclude("winuser.h");
-    @cInclude("wingdi.h");
-});
-
-// pub export fn wWinMain(hInstance: win.HINSTANCE, hPrevInstance: ?win.HINSTANCE, lpCmdLine: win.LPWSTR, nShowCmd: c_int) callconv(.winapi) c_int {
-//     _ = hInstance;
-//     _ = hPrevInstance;
-//     _ = lpCmdLine;
-//     _ = nShowCmd;
-
-//     _ = c.MessageBoxA(0, "This is Handmade Hero.", "Handmade Hero", c.MB_OK | c.MB_ICONINFORMATION);
-//     return 0;
-// }
+const win = std.os.windows;
+const zwin = @import("zigwin32");
+const util = zwin.everything;
 
 pub fn mainWindowCallback(
-    window: c.HWND,
-    message: c.UINT,
-    wPapram: c.WPARAM,
-    lParam: c.LPARAM,
-) callconv(.winapi) c.LRESULT {
-    var result: c.LRESULT = 0;
+    window: zwin.foundation.HWND,
+    message: u32,
+    wPapram: usize,
+    lParam: isize,
+) callconv(.winapi) isize {
+    var result: win.LRESULT = 0;
     switch (message) {
-        c.WM_SIZE => {
-            c.OutputDebugStringA("WM_SIZE\n");
+        util.WM_SIZE => {
+            util.OutputDebugStringA("WM_SIZE\n");
         },
-        c.WM_DESTROY => {
-            c.OutputDebugStringA("WM_DESTROY \n");
+        util.WM_DESTROY => {
+            util.OutputDebugStringA("WM_DESTROY \n");
         },
-        c.WM_CLOSE => {
-            c.OutputDebugStringA("WM_CLOSE\n");
+        util.WM_CLOSE => {
+            util.OutputDebugStringA("WM_CLOSE\n");
         },
-        c.WM_ACTIVATE => {
-            c.OutputDebugStringA("WM_ACTIVATE\n");
+        util.WM_ACTIVATE => {
+            util.OutputDebugStringA("WM_ACTIVATE\n");
         },
-        c.WM_PAINT => {
-            var paint: c.PAINTSTRUCT = .{};
-            const deviceContext = c.BeginPaint(window, &paint);
-            defer _ = c.EndPaint(window, &paint);
+        util.WM_PAINT => {
+            var paint: util.PAINTSTRUCT = undefined;
+            const deviceContext = util.BeginPaint(window, &paint);
+            defer _ = util.EndPaint(window, &paint);
 
             const x = paint.rcPaint.left;
             const y = paint.rcPaint.top;
             const width = paint.rcPaint.right - paint.rcPaint.left;
             const height = paint.rcPaint.bottom - paint.rcPaint.top;
-            _ = c.PatBlt(deviceContext, x, y, width, height, c.WHITENESS);
+            _ = util.PatBlt(deviceContext, x, y, width, height, util.WHITENESS);
         },
         else => {
             // c.OutputDebugStringA("WM_SIZE\n");
-            result = c.DefWindowProcA(window, message, wPapram, lParam);
+            result = util.DefWindowProcA(window, message, wPapram, lParam);
         },
     }
     return result;
 }
 
-pub fn main() !void {
-    const windowClass = c.WNDCLASS{
-        .style = c.CS_OWNDC | c.CS_HREDRAW | c.CS_VREDRAW,
+pub export fn main(
+    instance: ?win.HINSTANCE,
+    prevInstance: ?win.HINSTANCE,
+    pCmdLine: win.LPWSTR,
+    nCmdShow: c_int,
+) callconv(.winapi) void {
+    _ = prevInstance;
+    _ = pCmdLine;
+    _ = nCmdShow;
+
+    const window = util.WNDCLASSA{
+        .cbClsExtra = 0,
+        .cbWndExtra = 0,
+        .style = .{ .OWNDC = 1, .HREDRAW = 1, .VREDRAW = 1 },
+        .hCursor = null,
+        .hIcon = null,
+        .hInstance = instance,
+        .hbrBackground = null,
         .lpfnWndProc = &mainWindowCallback,
-        .hInstance = c.GetModuleHandleA(0),
         .lpszClassName = "HandmadeHeroWindowClass",
+        .lpszMenuName = null,
     };
-    const regResult = c.RegisterClassA(&windowClass);
-    if (regResult != 0) {
-        const windowHandle = c.CreateWindowExA(0, windowClass.lpszClassName, "Handmade Hero", c.WS_OVERLAPPEDWINDOW | c.WS_VISIBLE, c.CW_USEDEFAULT, c.CW_USEDEFAULT, c.CW_USEDEFAULT, c.CW_USEDEFAULT, 0, 0, c.GetModuleHandleA((0)), null);
-        if (windowHandle != 0) {
-            while (true) {
-                var message: c.MSG = undefined;
-                const messageResult: c.WINBOOL = c.GetMessageA(&message, 0, 0, 0);
-                if (messageResult > 0) {
-                    _ = c.TranslateMessage(&message);
-                    _ = c.DispatchMessageA(&message);
-                } else {
-                    break;
-                }
+    const window_style: zwin.ui.windows_and_messaging.WINDOW_STYLE = .{
+        .TABSTOP = 1,
+        .GROUP = 1,
+        .THICKFRAME = 1,
+        .SYSMENU = 1,
+        .DLGFRAME = 1,
+        .BORDER = 1,
+        .VISIBLE = 1,
+    };
+    if (util.RegisterClassA(&window) != 0) {
+        const handle = util.CreateWindowExA(
+            .{},
+            window.lpszClassName,
+            "Handmade Hero",
+            window_style,
+            util.CW_USEDEFAULT,
+            util.CW_USEDEFAULT,
+            util.CW_USEDEFAULT,
+            util.CW_USEDEFAULT,
+            null,
+            null,
+            instance,
+            null,
+        );
+        if (handle) |_| {
+            var message: util.MSG = undefined;
+            sw: switch (util.GetMessageA(&message, null, 0, 0)) {
+                0 => break :sw,
+                else => {
+                    _ = util.TranslateMessage(&message);
+                    _ = util.DispatchMessageA(&message);
+                    continue :sw util.GetMessageA(&message, null, 0, 0);
+                },
             }
         }
     }

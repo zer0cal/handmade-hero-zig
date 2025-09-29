@@ -4,6 +4,10 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const zigwin32 = b.addModule("zigwin32", .{
+        .root_source_file = b.path("src/zigwin32/win32.zig"),
+    });
+
     const exe = b.addExecutable(.{
         .name = "handmade_hero_zig",
         .root_module = b.createModule(.{
@@ -12,10 +16,9 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .link_libc = true,
             .link_libcpp = true,
+            .imports = &.{.{ .name = "zigwin32", .module = zigwin32 }},
         }),
     });
-    exe.root_module.linkSystemLibrary("user32", .{});
-    exe.root_module.linkSystemLibrary("Gdi32", .{});
 
     b.installArtifact(exe);
 
