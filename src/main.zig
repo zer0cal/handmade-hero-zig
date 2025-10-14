@@ -22,12 +22,16 @@ fn renderGradient(x_offset: u32, y_offset: u32) void {
     var row: *u8 = @ptrCast(bitmap_memory);
 
     for (0..@intCast(bitmap_height)) |y| {
+        const y_u32: u32 = @intCast(y);
         var pixel: *u32 = @ptrCast(@alignCast(row));
         for (0..@intCast(bitmap_width)) |x| {
-            const blue = @divTrunc((@as(u32, @intCast(x)) + x_offset) * 255, bitmap_width);
-            const green = @divTrunc((@as(u32, @intCast(y)) + y_offset) * 255, bitmap_height);
-            const red = @divTrunc((bitmap_width + x_offset + y_offset - @as(u32, @intCast(y))) * 255, bitmap_width);
-            pixel.* = (@as(u32, @intCast(red)) << 16 | @as(u32, @intCast(green)) << 8 | @as(u32, @intCast(blue)));
+            const x_u32: u32 = @intCast(x);
+
+            const blue = @divTrunc((x_u32 + x_offset) * 255, bitmap_width);
+            const green = @divTrunc((y_u32 + y_offset) * 255, bitmap_height);
+            const red = @divTrunc((bitmap_width + x_offset + y_offset - y_u32) * 255, bitmap_width);
+
+            pixel.* = red << 16 | green << 8 | blue;
             pixel = @ptrFromInt(@intFromPtr(pixel) + bytes_per_pixel);
         }
         row = @ptrFromInt(@intFromPtr(row) + pitch);
