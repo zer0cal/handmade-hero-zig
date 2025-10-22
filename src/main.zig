@@ -27,9 +27,9 @@ fn renderGradient(x_offset: u32, y_offset: u32) void {
         for (0..@intCast(bitmap_width)) |x| {
             const x_u32: u32 = @intCast(x);
 
-            const blue = @divTrunc((x_u32 + x_offset) * 255, bitmap_width);
-            const green = @divTrunc((y_u32 + y_offset) * 255, bitmap_height);
-            const red = @divTrunc((bitmap_width + x_offset + y_offset - y_u32) * 255, bitmap_width);
+            const blue = (x_u32 + x_offset) * 255 / bitmap_width;
+            const green = (y_u32 + y_offset) * 255 / bitmap_height;
+            const red = (y_u32 + x_offset) * 255 / bitmap_width;
 
             pixel.* = red << 16 | green << 8 | blue;
             pixel = @ptrFromInt(@intFromPtr(pixel) + bytes_per_pixel);
