@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const zigwin32 = b.addModule("zigwin32", .{
-        .root_source_file = b.path("src/zigwin32/win32.zig"),
+        .root_source_file = b.path("zigwin32/win32.zig"),
     });
 
     const exe = b.addExecutable(.{
