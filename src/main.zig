@@ -2,7 +2,6 @@ const std = @import("std");
 const win = std.os.windows;
 
 const zwin = @import("zigwin32");
-// const zwin = @import("../zigwin32/win32.zig");
 const et = zwin.everything;
 const foundation = zwin.foundation;
 const debug = zwin.system.diagnostics.debug;
