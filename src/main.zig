@@ -177,7 +177,7 @@ pub export fn main(
     const window_class = wam.WNDCLASSA{
         .cbClsExtra = 0,
         .cbWndExtra = 0,
-        .style = .{ .OWNDC = 1, .HREDRAW = 1, .VREDRAW = 1 },
+        .style = .{ .HREDRAW = 1, .VREDRAW = 1 },
         .hCursor = null,
         .hIcon = null,
         .hInstance = instance,
@@ -230,7 +230,6 @@ pub export fn main(
 
                 const device_context = gdi.GetDC(window);
                 const dimension = getWindowDimension(window);
-
                 displayBufferInWindow(&globalBackbuffer, device_context, dimension.width, dimension.height, 0, 0, dimension.width, dimension.height);
                 _ = gdi.ReleaseDC(window, device_context);
 
