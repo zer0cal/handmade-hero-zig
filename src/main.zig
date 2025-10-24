@@ -62,7 +62,7 @@ fn resizeDIBSection(width: u32, height: u32) void {
     );
 }
 
-fn updateWindow(device_context: ?gdi.HDC, client_rect: *et.RECT, x: i32, y: i32, width: i32, height: i32) void {
+fn updateWindow(device_context: ?gdi.HDC, client_rect: et.RECT, x: i32, y: i32, width: i32, height: i32) void {
     _ = x; // autofix
     _ = y; // autofix
     _ = width; // autofix
@@ -124,7 +124,7 @@ pub fn mainWindowCallback(
 
             var client_rect: foundation.RECT = undefined;
             _ = wam.GetClientRect(window, &client_rect);
-            updateWindow(device_context, &client_rect, x, y, width, height);
+            updateWindow(device_context, client_rect, x, y, width, height);
         },
         else => {
             result = wam.DefWindowProcA(window, message, wPapram, lParam);
@@ -146,7 +146,7 @@ pub export fn main(
     const window_class = wam.WNDCLASSA{
         .cbClsExtra = 0,
         .cbWndExtra = 0,
-        .style = .{ .OWNDC = 1, .HREDRAW = 1, .VREDRAW = 1 },
+        .style = .{ .HREDRAW = 1, .VREDRAW = 1 },
         .hCursor = null,
         .hIcon = null,
         .hInstance = instance,
@@ -199,7 +199,7 @@ pub export fn main(
                 _ = wam.GetClientRect(window, &client_rect);
                 const window_width = client_rect.right - client_rect.left;
                 const window_height = client_rect.bottom - client_rect.top;
-                updateWindow(device_context, &client_rect, 0, 0, window_width, window_height);
+                updateWindow(device_context, client_rect, 0, 0, window_width, window_height);
                 _ = gdi.ReleaseDC(window, device_context);
 
                 x_offset -%= 1;
