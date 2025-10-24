@@ -2,6 +2,7 @@ const std = @import("std");
 const win = std.os.windows;
 
 const zwin = @import("zigwin32");
+// const zwin = @import("../zigwin32/win32.zig");
 const et = zwin.everything;
 const foundation = zwin.foundation;
 const debug = zwin.system.diagnostics.debug;
@@ -9,80 +10,107 @@ const wam = zwin.ui.windows_and_messaging;
 const gdi = zwin.graphics.gdi;
 const mem = zwin.system.memory;
 
-const bytes_per_pixel = 4;
+const OffscreenBuffer = struct {
+    info: gdi.BITMAPINFO = undefined,
+    memory: ?*anyopaque = undefined,
+    width: u32 = undefined,
+    height: u32 = undefined,
+    pitch: u32 = undefined,
+    bytes_per_pixel: u32 = undefined,
+};
+
+const WindowDimension = struct {
+    width: u32,
+    height: u32,
+};
 
 var running: bool = undefined;
-var bitmap_info: gdi.BITMAPINFO = undefined;
-var bitmap_memory: ?*anyopaque = undefined;
-var bitmap_width: u32 = undefined;
-var bitmap_height: u32 = undefined;
+var globalBackbuffer: OffscreenBuffer = .{};
 
-fn renderGradient(x_offset: u32, y_offset: u32) void {
-    const pitch: usize = @intCast(bitmap_width * bytes_per_pixel);
-    var row: *u8 = @ptrCast(bitmap_memory);
+fn getWindowDimension(window: ?foundation.HWND) WindowDimension {
+    var client_rect: foundation.RECT = undefined;
+    _ = wam.GetClientRect(window, &client_rect);
+    const width: u32 = @intCast(client_rect.right - client_rect.left);
+    const height: u32 = @intCast(client_rect.bottom - client_rect.top);
+    return .{
+        .width = width,
+        .height = height,
+    };
+}
 
-    for (0..@intCast(bitmap_height)) |y| {
+fn renderGradient(buffer: *const OffscreenBuffer, x_offset: u32, y_offset: u32) void {
+    var row: *u8 = @ptrCast(buffer.memory);
+
+    for (0..@intCast(buffer.height)) |y| {
         const y_u32: u32 = @intCast(y);
         var pixel: *u32 = @ptrCast(@alignCast(row));
-        for (0..@intCast(bitmap_width)) |x| {
+        for (0..@intCast(buffer.width)) |x| {
             const x_u32: u32 = @intCast(x);
 
-            const blue = (x_u32 + x_offset) * 255 / bitmap_width;
-            const green = (y_u32 + y_offset) * 255 / bitmap_height;
-            const red = (y_u32 + x_offset) * 255 / bitmap_width;
+            const blue = (x_u32 + x_offset) * 255 / buffer.width;
+            const green = (y_u32 + y_offset) * 255 / buffer.height;
+            const red = (y_u32 + x_offset) * 255 / buffer.width;
 
             pixel.* = red << 16 | green << 8 | blue;
-            pixel = @ptrFromInt(@intFromPtr(pixel) + bytes_per_pixel);
+            pixel = @ptrFromInt(@intFromPtr(pixel) + buffer.bytes_per_pixel);
         }
-        row = @ptrFromInt(@intFromPtr(row) + pitch);
+        row = @ptrFromInt(@intFromPtr(row) + buffer.pitch);
     }
 }
 
-fn resizeDIBSection(width: u32, height: u32) void {
-    if (bitmap_memory) |_| {
-        _ = mem.VirtualFree(bitmap_memory, 0, et.MEM_RELEASE);
+fn resizeDIBSection(buffer: *OffscreenBuffer, width: u32, height: u32) void {
+    if (buffer.memory) |_| {
+        _ = mem.VirtualFree(buffer.memory, 0, et.MEM_RELEASE);
     }
 
-    bitmap_width = width;
-    bitmap_height = height;
+    buffer.width = width;
+    buffer.height = height;
+    buffer.bytes_per_pixel = 4;
 
-    bitmap_info.bmiHeader.biSize = @sizeOf(@TypeOf(bitmap_info.bmiHeader));
-    bitmap_info.bmiHeader.biWidth = @intCast(bitmap_width);
-    bitmap_info.bmiHeader.biHeight = @intCast(bitmap_height);
-    bitmap_info.bmiHeader.biPlanes = 1;
-    bitmap_info.bmiHeader.biBitCount = 32;
-    bitmap_info.bmiHeader.biCompression = gdi.BI_RGB;
+    buffer.info.bmiHeader.biSize = @sizeOf(@TypeOf(buffer.info.bmiHeader));
+    buffer.info.bmiHeader.biWidth = @intCast(buffer.width);
+    buffer.info.bmiHeader.biHeight = @intCast(buffer.height);
+    buffer.info.bmiHeader.biPlanes = 1;
+    buffer.info.bmiHeader.biBitCount = 32;
+    buffer.info.bmiHeader.biCompression = gdi.BI_RGB;
 
-    const bitmap_memory_size: usize = @intCast(bitmap_width * bitmap_height * bytes_per_pixel);
-    bitmap_memory = mem.VirtualAlloc(
+    const buffer_memory_size: usize = @intCast(buffer.width * buffer.height * buffer.bytes_per_pixel);
+    buffer.memory = mem.VirtualAlloc(
         null,
-        bitmap_memory_size,
+        buffer_memory_size,
         mem.MEM_COMMIT,
         mem.PAGE_READWRITE,
     );
+    buffer.pitch = @intCast(buffer.width * buffer.bytes_per_pixel);
 }
 
-fn updateWindow(device_context: ?gdi.HDC, client_rect: *et.RECT, x: i32, y: i32, width: i32, height: i32) void {
+fn displayBufferInWindow(
+    buffer: *OffscreenBuffer,
+    device_context: ?gdi.HDC,
+    window_width: u32,
+    window_height: u32,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+) void {
     _ = x; // autofix
     _ = y; // autofix
     _ = width; // autofix
     _ = height; // autofix
 
-    const window_width = client_rect.right - client_rect.left;
-    const window_height = client_rect.bottom - client_rect.top;
-
     _ = gdi.StretchDIBits(
         device_context,
         0,
         0,
-        @intCast(bitmap_width),
-        @intCast(bitmap_height),
+        @intCast(window_width),
+        @intCast(window_height),
         0,
         0,
-        window_width,
-        window_height,
-        bitmap_memory,
-        &bitmap_info,
+        @intCast(buffer.width),
+        @intCast(buffer.height),
+        buffer.memory,
+        &buffer.info,
         gdi.DIB_RGB_COLORS,
         gdi.SRCCOPY,
     );
@@ -96,13 +124,7 @@ pub fn mainWindowCallback(
 ) callconv(.winapi) isize {
     var result: win.LRESULT = 0;
     switch (message) {
-        wam.WM_SIZE => {
-            var client_rect: foundation.RECT = undefined;
-            _ = wam.GetClientRect(window, &client_rect);
-            const width: u32 = @intCast(client_rect.right - client_rect.left);
-            const height: u32 = @intCast(client_rect.bottom - client_rect.top);
-            resizeDIBSection(width, height);
-        },
+        wam.WM_SIZE => {},
         wam.WM_DESTROY => {
             running = false;
         },
@@ -117,14 +139,23 @@ pub fn mainWindowCallback(
             const device_context = gdi.BeginPaint(window, &paint);
             defer _ = gdi.EndPaint(window, &paint);
 
-            const x = paint.rcPaint.left;
-            const y = paint.rcPaint.top;
-            const width = paint.rcPaint.right - paint.rcPaint.left;
-            const height = paint.rcPaint.bottom - paint.rcPaint.top;
+            const x: u32 = @intCast(paint.rcPaint.left);
+            const y: u32 = @intCast(paint.rcPaint.top);
+            const width: u32 = @intCast(paint.rcPaint.right - paint.rcPaint.left);
+            const height: u32 = @intCast(paint.rcPaint.bottom - paint.rcPaint.top);
 
-            var client_rect: foundation.RECT = undefined;
-            _ = wam.GetClientRect(window, &client_rect);
-            updateWindow(device_context, &client_rect, x, y, width, height);
+            const dimension = getWindowDimension(window);
+
+            displayBufferInWindow(
+                &globalBackbuffer,
+                device_context,
+                dimension.width,
+                dimension.height,
+                x,
+                y,
+                width,
+                height,
+            );
         },
         else => {
             result = wam.DefWindowProcA(window, message, wPapram, lParam);
@@ -155,6 +186,9 @@ pub export fn main(
         .lpszClassName = "HandmadeHeroWindowClass",
         .lpszMenuName = null,
     };
+
+    resizeDIBSection(&globalBackbuffer, 1280, 720);
+
     const window_style: wam.WINDOW_STYLE = .{
         .TABSTOP = 1,
         .GROUP = 1,
@@ -192,14 +226,12 @@ pub export fn main(
                     _ = wam.TranslateMessage(&message);
                     _ = wam.DispatchMessageA(&message);
                 }
-                renderGradient(x_offset, y_offset);
+                renderGradient(&globalBackbuffer, x_offset, y_offset);
 
                 const device_context = gdi.GetDC(window);
-                var client_rect: foundation.RECT = undefined;
-                _ = wam.GetClientRect(window, &client_rect);
-                const window_width = client_rect.right - client_rect.left;
-                const window_height = client_rect.bottom - client_rect.top;
-                updateWindow(device_context, &client_rect, 0, 0, window_width, window_height);
+                const dimension = getWindowDimension(window);
+
+                displayBufferInWindow(&globalBackbuffer, device_context, dimension.width, dimension.height, 0, 0, dimension.width, dimension.height);
                 _ = gdi.ReleaseDC(window, device_context);
 
                 x_offset -%= 1;
