@@ -9,13 +9,14 @@ const wam = zwin.ui.windows_and_messaging;
 const gdi = zwin.graphics.gdi;
 const mem = zwin.system.memory;
 
+const BYTES_PER_PIXEL = 4;
+
 const OffscreenBuffer = struct {
     info: gdi.BITMAPINFO = undefined,
     memory: ?*anyopaque = undefined,
     width: u32 = undefined,
     height: u32 = undefined,
     pitch: u32 = undefined,
-    bytes_per_pixel: u32 = undefined,
 };
 
 const WindowDimension = struct {
@@ -46,9 +47,9 @@ fn renderGradient(buffer: *const OffscreenBuffer, x_offset: u32, y_offset: u32) 
         for (0..@intCast(buffer.width)) |x| {
             const x_u32: u32 = @intCast(x);
 
-            const blue = (x_u32 + x_offset) * 255 / buffer.width;
-            const green = (y_u32 + y_offset) * 255 / buffer.height;
             const red = (y_u32 + x_offset) * 255 / buffer.width;
+            const green = (y_u32 + y_offset) * 255 / buffer.height;
+            const blue = (x_u32 + x_offset) * 255 / buffer.width;
 
             pixel.* = red << 16 | green << 8 | blue;
             pixel = @ptrFromInt(@intFromPtr(pixel) + buffer.bytes_per_pixel);
@@ -64,7 +65,6 @@ fn resizeDIBSection(buffer: *OffscreenBuffer, width: u32, height: u32) void {
 
     buffer.width = width;
     buffer.height = height;
-    buffer.bytes_per_pixel = 4;
 
     buffer.info.bmiHeader.biSize = @sizeOf(@TypeOf(buffer.info.bmiHeader));
     buffer.info.bmiHeader.biWidth = @intCast(buffer.width);
@@ -73,14 +73,14 @@ fn resizeDIBSection(buffer: *OffscreenBuffer, width: u32, height: u32) void {
     buffer.info.bmiHeader.biBitCount = 32;
     buffer.info.bmiHeader.biCompression = gdi.BI_RGB;
 
-    const buffer_memory_size: usize = @intCast(buffer.width * buffer.height * buffer.bytes_per_pixel);
+    const buffer_memory_size: usize = @intCast(buffer.width * buffer.height * BYTES_PER_PIXEL);
     buffer.memory = mem.VirtualAlloc(
         null,
         buffer_memory_size,
         mem.MEM_COMMIT,
         mem.PAGE_READWRITE,
     );
-    buffer.pitch = @intCast(buffer.width * buffer.bytes_per_pixel);
+    buffer.pitch = @intCast(buffer.width * BYTES_PER_PIXEL);
 }
 
 fn displayBufferInWindow(
